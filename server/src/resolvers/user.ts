@@ -10,7 +10,10 @@ import {
   Resolver,
 } from "type-graphql";
 import argon2 from "argon2";
-import { COOKIE_NAME } from "../constants";
+import { COOKIE_NAME, FORGET_PASSWORD_PREFIX } from "../constants";
+import { validateRegister } from "../utils/validateRegister";
+import { sendEmail } from "../utils/sendEmail";
+import { v4 } from "uuid";
 
 @ObjectType()
 class FieldError {
@@ -42,34 +45,97 @@ export class UserResolver {
     return user;
   }
 
-  @Mutation(() => UserResponse)
-  async register(
-    @Arg("username") username: string,
-    @Arg("password") password: string,
-    @Ctx() { em, req }: MyContext
-  ): Promise<UserResponse> {
-    if (username.length <= 2) {
-      return {
-        errors: [
-          {
-            field: "username",
-            message: "Username must be at least 3 characters long",
-          },
-        ],
-      };
+  @Mutation(() => Boolean)
+  async forgotPassword(
+    @Arg("email") email: string,
+    @Ctx() { em, redis }: MyContext
+  ) {
+    const user = await em.findOne(User, { email });
+    if (!user) {
+      // email is not in the database
+      return true;
     }
-    if (password.length <= 2) {
+
+    const token = v4();
+    await redis.set(
+      FORGET_PASSWORD_PREFIX + token,
+      user.id,
+      "ex",
+      1000 * 60 * 60 * 24 * 1
+    ); // 1 day
+
+    sendEmail(
+      email,
+      `<a href="http://localhost:3000/change-password/${token}">Reset password</a>`
+    );
+    return true;
+  }
+
+  @Mutation(() => UserResponse)
+  async changePassword(
+    @Arg("token") token: string,
+    @Arg("newPassword") newPassword: string,
+    @Ctx() { redis, em, req }: MyContext
+  ): Promise<UserResponse> {
+    if (newPassword.length <= 2) {
       return {
         errors: [
           {
-            field: "password",
+            field: "newPassword",
             message: "Password must be at least 3 characters long",
           },
         ],
       };
     }
+    const key = FORGET_PASSWORD_PREFIX + token;
+    const userId = await redis.get(key);
+    if (!userId) {
+      return {
+        errors: [
+          {
+            field: "token",
+            message: "Token invalid or expired",
+          },
+        ],
+      };
+    }
+
+    const user = await em.findOne(User, { id: parseInt(userId) });
+    if (!user) {
+      // This should not happen in theory
+      return {
+        errors: [
+          {
+            field: "token",
+            message: "Token invalid or expired",
+          },
+        ],
+      };
+    }
+
+    const hashedPassword = await argon2.hash(newPassword);
+    user.password = hashedPassword;
+
+    await em.persistAndFlush(user);
+    await redis.del(key);
+
+    req.session.userId = user.id;
+
+    return { user };
+  }
+
+  @Mutation(() => UserResponse)
+  async register(
+    @Arg("username") username: string,
+    @Arg("email") email: string,
+    @Arg("password") password: string,
+    @Ctx() { em, req }: MyContext
+  ): Promise<UserResponse> {
+    const errors = validateRegister(username, password, email);
+    if (errors) return { errors };
+
     const hashedPassword = await argon2.hash(password);
-    const user = em.create(User, { username, password: hashedPassword });
+    const user = em.create(User, { username, password: hashedPassword, email });
     try {
       await em.persistAndFlush(user);
     } catch (err) {
@@ -90,15 +156,22 @@ export class UserResolver {
 
   @Mutation(() => UserResponse)
   async login(
-    @Arg("username") username: string,
+    @Arg("usernameOrEmail") usernameOrEmail: string,
     @Arg("password") password: string,
     @Ctx() { em, req }: MyContext
   ): Promise<UserResponse> {
-    const user = await em.findOne(User, { username });
+    const user = await em.findOne(
+      User,
+      usernameOrEmail.includes("@")
+        ? { email: usernameOrEmail }
+        : { username: usernameOrEmail }
+    );
 
     if (!user) {
       return {
-        errors: [{ field: "username", message: "Username does not exist" }],
+        errors: [
+          { field: "usernameOrEmail", message: "Username does not exist" },
+        ],
       };
     }
 
