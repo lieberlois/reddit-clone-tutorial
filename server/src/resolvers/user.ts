@@ -1,5 +1,5 @@
 import { User } from "../entities/User";
-import { MyContext } from "src/types";
+import { MyContext } from "../types";
 import {
   Arg,
   Ctx,
@@ -10,6 +10,7 @@ import {
   Resolver,
 } from "type-graphql";
 import argon2 from "argon2";
+import { COOKIE_NAME } from "../constants";
 
 @ObjectType()
 class FieldError {
@@ -52,7 +53,7 @@ export class UserResolver {
         errors: [
           {
             field: "username",
-            message: "username must be at least 3 characters long",
+            message: "Username must be at least 3 characters long",
           },
         ],
       };
@@ -61,8 +62,8 @@ export class UserResolver {
       return {
         errors: [
           {
-            field: "username",
-            message: "username must be at least 3 characters long",
+            field: "password",
+            message: "Password must be at least 3 characters long",
           },
         ],
       };
@@ -77,7 +78,7 @@ export class UserResolver {
           errors: [
             {
               field: "username",
-              message: "username already exists",
+              message: "Username already exists",
             },
           ],
         };
@@ -97,7 +98,7 @@ export class UserResolver {
 
     if (!user) {
       return {
-        errors: [{ field: "username", message: "username does not exist" }],
+        errors: [{ field: "username", message: "Username does not exist" }],
       };
     }
 
@@ -105,10 +106,27 @@ export class UserResolver {
 
     if (!valid) {
       return {
-        errors: [{ field: "password", message: "wrong password" }],
+        errors: [{ field: "password", message: "Wrong password" }],
       };
     }
     req.session.userId = user.id;
     return { user };
+  }
+
+  @Mutation(() => Boolean)
+  logout(@Ctx() { req, res }: MyContext) {
+    return new Promise((resolve) =>
+      req.session.destroy((err) => {
+        res.clearCookie(COOKIE_NAME);
+
+        if (err) {
+          console.log(err);
+          resolve(false);
+          return;
+        }
+
+        resolve(true);
+      })
+    );
   }
 }
