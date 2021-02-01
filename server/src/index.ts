@@ -15,6 +15,7 @@ import { createConnection } from "typeorm";
 import { User } from "./entities/User";
 import { Post } from "./entities/Post";
 import path from "path";
+import { Updoot } from "./entities/Updoot";
 
 const main = async () => {
   const conn = await createConnection({
@@ -24,7 +25,7 @@ const main = async () => {
     password: "postgres",
     logging: true,
     synchronize: true,
-    entities: [User, Post],
+    entities: [User, Post, Updoot],
     migrations: [path.join(__dirname, "./migrations/*")],
   });
 
