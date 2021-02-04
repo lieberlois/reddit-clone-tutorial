@@ -1,4 +1,4 @@
-import { cacheExchange, Resolver } from "@urql/exchange-graphcache";
+import { cacheExchange, Resolver, Cache } from "@urql/exchange-graphcache";
 import {
   dedupExchange,
   Exchange,
@@ -33,6 +33,15 @@ const errorExchange: Exchange = ({ forward }) => (ops$) => {
     })
   );
 };
+
+function invalidateAllPosts(cache: Cache) {
+  const allFields = cache.inspectFields("Query");
+  const fieldInfos = allFields.filter((info) => info.fieldName === "posts");
+
+  fieldInfos.forEach((fieldInfo) => {
+    cache.invalidate("Query", "posts", fieldInfo.arguments || {});
+  });
+}
 
 export const createUrqlClient = (ssrExchange: any, ctx: any) => {
   let cookie = "";
@@ -102,14 +111,7 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
               }
             },
             createPost: (_result, _, cache, __) => {
-              const allFields = cache.inspectFields("Query");
-              const fieldInfos = allFields.filter(
-                (info) => info.fieldName === "posts"
-              );
-
-              fieldInfos.forEach((fieldInfo) => {
-                cache.invalidate("Query", "posts", fieldInfo.arguments || {});
-              });
+              invalidateAllPosts(cache);
             },
             logout: (_result, _, cache, __) => {
               betterUpdateQuery<LogoutMutation, MeQuery>(
@@ -118,14 +120,6 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
                 _result,
                 () => ({ me: null })
               );
-              const allFields = cache.inspectFields("Query");
-              const fieldInfos = allFields.filter(
-                (info) => info.fieldName === "posts"
-              );
-
-              fieldInfos.forEach((fieldInfo) => {
-                cache.invalidate("Query", "posts", fieldInfo.arguments || {});
-              });
             },
             login: (_result, _, cache, __) => {
               betterUpdateQuery<LoginMutation, MeQuery>(
@@ -142,14 +136,7 @@ export const createUrqlClient = (ssrExchange: any, ctx: any) => {
                   }
                 }
               );
-              const allFields = cache.inspectFields("Query");
-              const fieldInfos = allFields.filter(
-                (info) => info.fieldName === "posts"
-              );
-
-              fieldInfos.forEach((fieldInfo) => {
-                cache.invalidate("Query", "posts", fieldInfo.arguments || {});
-              });
+              invalidateAllPosts(cache);
             },
             register: (_result, _, cache, __) => {
               betterUpdateQuery<RegisterMutation, MeQuery>(
