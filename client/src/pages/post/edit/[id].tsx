@@ -9,12 +9,14 @@ import { useUpdatePostMutation } from '../../../generated/graphql';
 import { createUrqlClient } from '../../../utils/createUrqlClient';
 import { useGetIntId } from '../../../utils/useGetIntId';
 import { useGetPostFromUrl } from '../../../utils/useGetPostFromUrl';
+import { useIsAuth } from '../../../utils/useIsAuth';
 
 interface EditPostProps {
 
 }
 
 const EditPost = ({ }: EditPostProps) => {
+  useIsAuth()
   const [{ data, error, fetching }] = useGetPostFromUrl();
   const [, updatePost] = useUpdatePostMutation();
   const postId = useGetIntId();
