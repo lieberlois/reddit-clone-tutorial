@@ -1,3 +1,4 @@
+import "dotenv-safe/config";
 import "reflect-metadata";
 import { COOKIE_NAME, __prod__ } from "./constants";
 import express from "express";
@@ -22,9 +23,7 @@ import { createUpdootLoader } from "./utils/createUpdootLoader";
 const main = async () => {
   const conn = await createConnection({
     type: "postgres",
-    database: "redditclonedb",
-    username: "postgres",
-    password: "postgres",
+    url: process.env.DB_URL,
     logging: true,
     synchronize: true,
     entities: [User, Post, Updoot],
@@ -35,6 +34,8 @@ const main = async () => {
 
   const app = express();
 
+  // app.set("trust proxy", 1)  // for nginx
+
   app.use(
     cors({
       origin: "http://localhost:3000",
@@ -44,7 +45,7 @@ const main = async () => {
 
   // docker run -p 6379:6379 redis:latest
   const RedisStore = connectRedis(session);
-  const redis = new Redis();
+  const redis = new Redis(process.env.REDIS_URL);
 
   console.log("Connected to REDIS...");
 
@@ -62,7 +63,7 @@ const main = async () => {
         secure: __prod__,
         sameSite: "lax",
       },
-      secret: "asdfghjkl",
+      secret: process.env.SESSION_SECRET,
       resave: false,
       saveUninitialized: false,
     })
@@ -87,7 +88,7 @@ const main = async () => {
     cors: false,
   });
 
-  app.listen(4000, () => {
+  app.listen(process.env.PORT, () => {
     console.log("Backend started on localhost:4000");
   });
 };
