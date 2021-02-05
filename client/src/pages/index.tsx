@@ -1,27 +1,26 @@
 import { Box, Center, Flex, Heading, Link, Stack, Text, Button } from "@chakra-ui/react";
-import { withUrqlClient } from "next-urql";
-import React, { useState } from "react";
+import React from "react";
 import Layout from "../components/Layout";
 import { useMeQuery, usePostsQuery } from "../generated/graphql";
-import { createUrqlClient } from "../utils/createUrqlClient";
 import NextLink from "next/link"
 import UpdootSection from "../components/UpdootSection";
 import { EditDeletePostButtons } from "../components/EditDeletePostButtons";
+import { apolloWrapper } from "../utils/withApollo";
 
 const Index = () => {
-  const [variables, setVariables] = useState({ limit: 15, cursor: null as null | string })
-  const [{ data, fetching }] = usePostsQuery({
-    variables,
+  const { data, loading, fetchMore, variables } = usePostsQuery({
+    variables: { limit: 15, cursor: null as null | string },
+    notifyOnNetworkStatusChange: true
   });
 
-  const [{ data: user }] = useMeQuery()
+  const { data: user } = useMeQuery()
 
-  if (!fetching && !data) {
+  if (!loading && !data) {
     return <div>No posts found.</div>
   }
   return (
     <Layout>
-      {!data && fetching ? (
+      {!data && loading ? (
         <div>Loading...</div>
       ) : (
           <>
@@ -37,9 +36,9 @@ const Index = () => {
                     </NextLink>
                     <Text>posted by: {p.creator.username}</Text>
                     <Flex align="center">
-                      <Text mt={4}>{p.textSnippet}</Text>
+                      <Text mt={4}>{p.textSnippet}{p.textSnippet.length === 100 && "..."}</Text>
                       {user?.me?.id === p.creator.id && (
-                        <EditDeletePostButtons key={p.id} postId={p.id} />
+                        <EditDeletePostButtons key={p.id} postId={p.id} creatorId={p.creator.id} />
                       )}
                     </Flex>
                   </Box>
@@ -50,13 +49,33 @@ const Index = () => {
               <Button
                 variant="outline"
                 colorScheme="black"
-                isLoading={fetching}
+                isLoading={loading}
                 my={8}
                 onClick={() => {
-                  setVariables({
-                    cursor: data.posts.posts[data.posts.posts.length - 1].createdAt,
-                    limit: variables.limit
-                  });
+                  fetchMore({
+                    variables: {
+                      limit: variables?.limit,
+                      cursor: data.posts.posts[data.posts.posts.length - 1].createdAt,
+                    },
+                    // Old way for updating, new way is in _app.tsx
+                    // updateQuery: (previousValues, { fetchMoreResult }): PostsQuery => {
+                    //   if (!fetchMoreResult) {
+                    //     return previousValues as PostsQuery
+                    //   }
+
+                    //   return {
+                    //     __typename: "Query",
+                    //     posts: {
+                    //       __typename: "PaginatedPosts",
+                    //       hasMore: (fetchMoreResult as PostsQuery).posts.hasMore,
+                    //       posts: [
+                    //         ...(previousValues as PostsQuery).posts.posts,
+                    //         ...(fetchMoreResult as PostsQuery).posts.posts
+                    //       ]
+                    //     }
+                    //   }
+                    // }
+                  })
                 }}
               >
                 Load more
@@ -70,4 +89,4 @@ const Index = () => {
 }
 
 
-export default withUrqlClient(createUrqlClient, { ssr: true })(Index);
+export default apolloWrapper({ ssr: true })(Index);

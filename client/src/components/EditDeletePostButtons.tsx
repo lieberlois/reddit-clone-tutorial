@@ -2,14 +2,20 @@ import { EditIcon, DeleteIcon } from '@chakra-ui/icons'
 import { Flex, IconButton } from '@chakra-ui/react'
 import React from 'react'
 import NextLink from "next/link";
-import { useDeletePostMutation } from '../generated/graphql';
+import { useDeletePostMutation, useMeQuery } from '../generated/graphql';
 
 interface EditDeletePostButtonsProps {
   postId: number;
+  creatorId: number
 }
 
-export const EditDeletePostButtons = ({ postId }: EditDeletePostButtonsProps) => {
-  const [, deletePost] = useDeletePostMutation()
+export const EditDeletePostButtons = ({ postId, creatorId }: EditDeletePostButtonsProps) => {
+  const [deletePost] = useDeletePostMutation()
+  const { data: meData } = useMeQuery()
+
+  if (meData?.me?.id !== creatorId) {
+    return null
+  }
 
   return (
     <Flex flex={1} direction="column">
@@ -26,7 +32,14 @@ export const EditDeletePostButtons = ({ postId }: EditDeletePostButtonsProps) =>
         icon={<DeleteIcon />}
         colorScheme="red"
         aria-label="delete-post"
-        onClick={() => deletePost({ id: postId })}
+        onClick={() => deletePost({
+          variables: { id: postId }, update: (cache) => {
+            cache.evict({
+              // Post:72
+              id: "Post:" + postId
+            })
+          }
+        })}
       />
     </Flex>
   )

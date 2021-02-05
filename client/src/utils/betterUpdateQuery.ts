@@ -1,3 +1,5 @@
+// URQL
+
 import { Cache, QueryInput } from "@urql/exchange-graphcache";
 
 export function betterUpdateQuery<Result, Query>(
